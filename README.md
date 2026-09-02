@@ -1,11 +1,13 @@
 Markdown
+
 # Panduan Deployment - AI Service DDM PT Sage
 
-Dokumen ini berisi catatan langkah-langkah teknis untuk melakukan *deploy* mesin AI (FastAPI & LangChain) ke server VPS berbasis Ubuntu.
+Dokumen ini berisi catatan langkah-langkah teknis untuk melakukan _deploy_ mesin AI (FastAPI & LangChain) ke server VPS berbasis Ubuntu.
 
 ---
 
 ## 1. Persiapan Server & Instalasi Modul Dasar
+
 Masuk ke VPS melalui SSH, lalu jalankan perintah berikut untuk memperbarui sistem dan menginstal paket yang dibutuhkan:
 
 ```bash
@@ -92,3 +94,26 @@ Sebagai langkah terakhir, buka file .env pada proyek utama Laravel Anda, lalu ar
 
 Cuplikan kode
 AI_SERVICE_URL=[http://api-ai.domainanda.com](http://api-ai.domainanda.com)
+
+
+
+```
+
+## 2. Build dan run Docker (Opsional)
+
+```
+docker build -t chatbot-ddm .
+docker run -d \
+ --name chatbot-ddm \
+ --restart unless-stopped \
+ -- network ddm \
+ -p 8093:8001 \
+ -v /home/wms/EngineChatbotGroq:/app \
+ -v /home/wms/EngineChatbotGroq/vector_db:/app/vector_db \
+ --env-file /home/wms/EngineChatbotGroq/.env \
+ chatbot-ddm
+
+cd /home/wms/EngineChatbotGroq
+git pull
+docker restart chatbot-ddm
+```

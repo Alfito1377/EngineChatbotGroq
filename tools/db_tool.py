@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 from dotenv import load_dotenv
 from langchain_core.tools import tool
 from langchain_community.utilities import SQLDatabase
@@ -6,27 +7,12 @@ from langchain_groq import ChatGroq
 from langchain_community.agent_toolkits import create_sql_agent
 
 load_dotenv()
-url_database = f"mysql+pymysql://{os.getenv('DB_USERNAME', 'root')}:{os.getenv('DB_PASSWORD', '')}@{os.getenv('DB_HOST', '127.0.0.1')}:{os.getenv('DB_PORT', '3306')}/{os.getenv('DB_DATABASE', 'SAGE')}"
 
 tabel_penting = [
     "delivery_receipt_details", "delivery_receipts", "driver",  
     "logistic", "logistic_scans", "returns", "return_details",
     "stores", "store_stocks", "turnovers", "turnover_details", "vehicle"
 ]
-
-db = SQLDatabase.from_uri(
-    url_database,
-    include_tables=tabel_penting,
-    sample_rows_in_table_info=3  # Ubah dari 0 menjadi 3 (LLM butuh melihat contoh isi baris)
-)
-
-llm_sql = ChatGroq(
-    model="openai/gpt-oss-120b", 
-    api_key=os.getenv("GROQ_API_KEY"),
-    temperature=0 
-)
-
-# Di dalam file tools/db_tool.py
 
 instruksi_khusus = """Kamu adalah asisten AI ahli dalam menganalisis data logistik PT Sage.
 Tugasmu adalah membuat query SQL MySQL yang akurat untuk menjawab pertanyaan pengguna.
@@ -39,14 +25,28 @@ Panduan penting:
 5. Susun jawaban menggunakan tabel Markdown yang rapi tanpa kolom ID.
 """
 
-sql_agent_executor = create_sql_agent(
-    llm=llm_sql,
-    db=db,
-    agent_type="tool-calling",
-    verbose=True,
-    handle_parsing_errors=True,
-    prefix=instruksi_khusus 
-)
+# ponytail: lazy init — hindari crash saat import jika env belum ready (Docker build)
+@lru_cache(maxsize=1)
+def _get_sql_agent():
+    url_database = f"mysql+pymysql://{os.getenv('DB_USERNAME', 'root')}:{os.getenv('DB_PASSWORD', '')}@{os.getenv('DB_HOST', '127.0.0.1')}:{os.getenv('DB_PORT', '3306')}/{os.getenv('DB_DATABASE', 'SAGE')}"
+    db = SQLDatabase.from_uri(
+        url_database,
+        include_tables=tabel_penting,
+        sample_rows_in_table_info=3,
+    )
+    llm_sql = ChatGroq(
+        model="openai/gpt-oss-120b",
+        api_key=os.getenv("GROQ_API_KEY"),
+        temperature=0,
+    )
+    return create_sql_agent(
+        llm=llm_sql,
+        db=db,
+        agent_type="tool-calling",
+        verbose=True,
+        handle_parsing_errors=True,
+        prefix=instruksi_khusus,
+    )
 
 @tool
 def alat_baca_database(pertanyaan: str) -> str:
@@ -56,7 +56,7 @@ def alat_baca_database(pertanyaan: str) -> str:
     """
     print("🤖 [Sistem]: Agen sedang menganalisis dan mengeksekusi Query SQL...")
     try:
-        hasil = sql_agent_executor.invoke({"input": pertanyaan})
+        hasil = _get_sql_agent().invoke({"input": pertanyaan})
         
         if isinstance(hasil, dict) and "output" in hasil:
             return str(hasil["output"])

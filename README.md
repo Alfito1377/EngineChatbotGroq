@@ -117,3 +117,18 @@ cd /home/wms/EngineChatbotGroq
 git pull
 docker restart chatbot-ddm
 ```
+## 3.jika tanpa upload dokumen lebih cepat. 
+
+```
+isi requirement nya
+
+fastapi
+uvicorn
+python-multipart
+pydantic
+langchain
+langchain-core
+langchain-community
+langchain-groq
+python-dotenv
+```
